@@ -7,6 +7,7 @@ server. Also it is running in threads to improve the performance and catch all t
 This code is partially taken bye LiveOverflow/PwnAdventure3 (https://github.com/LiveOverflow/PwnAdventure3) under the
 GPL-3.0 License
 """
+import logging
 import socket
 from threading import Thread
 
@@ -48,9 +49,12 @@ class ServerToClient(Thread):
             data: bytes = self.server.recv(4096)
             if data:
                 try:
-                    Parse(data, self.port, 'client')
+                    Parse(data, self.port, 'server')
                 except Exception as e:
-                    print(f'ERROR: client[{self.port}]: {e}')
+                    print(f'ERROR: server[{self.port}]: {e}')
+                    print(f'ERROR: server[{self.port}]: {data.hex()}')
+                    logging.debug(f'ERROR: server[{self.port}]: {e}')
+                    logging.debug(f'ERROR: server[{self.port}]: {data.hex()}')
                 self.client.sendall(data)
 
 
@@ -96,6 +100,9 @@ class ClientToServer(Thread):
                     Parse(data, self.port, 'client')
                 except Exception as e:
                     print(f'ERROR: client[{self.port}]: {e}')
+                    print(f'ERROR: client[{self.port}]: {data.hex()}')
+                    logging.debug(f'ERROR: client[{self.port}]: {e}')
+                    logging.debug(f'ERROR: client[{self.port}]: {data.hex()}')
                 self.server.sendall(data)
 
 
@@ -124,6 +131,7 @@ class Proxy(Thread):
         self.from_host = from_host
         self.to_host = to_host
         self.port = port
+        logging.basicConfig(filename='./debug.log', filemode='w', level=logging.DEBUG, format='%(message)s')
 
     def run(self) -> None:
         """
