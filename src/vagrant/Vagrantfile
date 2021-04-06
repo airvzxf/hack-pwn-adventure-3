@@ -1,0 +1,35 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+IP = '192.168.100.215'
+BRIDGE = 'enp4s0'
+MEMORY = '4096'
+
+VAGRANTFILE_API_VERSION = "2"
+VAGRANT_BOX = 'ubuntu/groovy64'
+VM_NAME = 'man-in-the-middle'
+VM_USER = 'vagrant'
+GUEST_PATH = '/home/' + VM_USER + '/mitm/'
+
+ENV["LC_ALL"] = "en_US.UTF-8"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.box = VAGRANT_BOX
+
+  config.vm.host_name = VM_NAME
+
+  config.vm.synced_folder "../mitm/", GUEST_PATH, create: true, group: VM_USER, owner: VM_USER
+
+  config.vm.network "public_network", ip: IP, bridge: BRIDGE
+
+  config.vm.provider :virtualbox do |vb|
+    vb.gui = false
+    vb.name = VM_NAME
+    vb.memory = MEMORY
+  end
+
+  config.vm.provision "shell", inline: <<-SHELL
+    apt update
+    apt upgrade -y
+  SHELL
+end
