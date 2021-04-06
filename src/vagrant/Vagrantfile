@@ -15,11 +15,8 @@ ENV["LC_ALL"] = "en_US.UTF-8"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box = VAGRANT_BOX
-
   config.vm.host_name = VM_NAME
-
   config.vm.synced_folder "../mitm/", GUEST_PATH, create: true, group: VM_USER, owner: VM_USER
-
   config.vm.network "public_network", ip: IP, bridge: BRIDGE
 
   config.vm.provider :virtualbox do |vb|
