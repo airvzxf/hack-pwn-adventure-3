@@ -1,0 +1,31 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+IP = '192.168.100.230'
+BRIDGE = 'enp4s0'
+MEMORY = '4096'
+
+VAGRANTFILE_API_VERSION = "2"
+VAGRANT_BOX = 'ubuntu/groovy64'
+VM_NAME = 'pwnAdventure3-server'
+VM_USER = 'vagrant'
+DOCKER_PATH = '/home/' + VM_USER + '/docker/'
+
+ENV["LC_ALL"] = "en_US.UTF-8"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.box = VAGRANT_BOX
+  config.vm.host_name = VM_NAME
+  config.vm.synced_folder "./docker/", DOCKER_PATH, create: true, group: VM_USER, owner: VM_USER
+  config.vm.network "public_network", ip: IP, bridge: BRIDGE
+
+  config.vm.provider :virtualbox do |vb|
+    vb.gui = false
+    vb.name = VM_NAME
+    vb.memory = MEMORY
+  end
+
+  config.vm.provision :shell, path: "script/provision.sh", env: {"DOCKER_PATH" => DOCKER_PATH}
+
+  config.vm.provision :shell, path: "script/docker.sh", env: {"DOCKER_PATH" => DOCKER_PATH}, run: 'always'
+end
