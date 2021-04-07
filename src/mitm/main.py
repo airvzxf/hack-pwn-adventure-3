@@ -14,7 +14,7 @@ def main() -> None:
     :rtype: None
     """
     from_host = '0.0.0.0'
-    to_host = '192.168.100.12'
+    to_host = '192.168.100.230'
     master_server = Proxy(from_host, to_host, 3333)
     master_server.start()
 
