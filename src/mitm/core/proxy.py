@@ -9,9 +9,10 @@ GPL-3.0 License
 """
 import logging
 import socket
+from importlib import reload
 from threading import Thread
 
-from core.parser import Parse
+import core.parser
 
 
 class ServerToClient(Thread):
@@ -49,13 +50,16 @@ class ServerToClient(Thread):
             data: bytes = self.server.recv(4096)
             if data:
                 try:
-                    Parse(data, self.port, 'server')
+                    reload(core.parser)
+                    parse = core.parser.Parse(data)
+                    new_data = parse.parse(self.port, 'server')
                 except Exception as e:
+                    new_data = data
                     print(f'ERROR: server[{self.port}]: {e}')
                     print(f'ERROR: server[{self.port}]: {data.hex()}')
                     logging.debug(f'ERROR: server[{self.port}]: {e}')
                     logging.debug(f'ERROR: server[{self.port}]: {data.hex()}')
-                self.client.sendall(data)
+                self.client.sendall(new_data)
 
 
 class ClientToServer(Thread):
@@ -97,13 +101,16 @@ class ClientToServer(Thread):
             data = self.client.recv(4096)
             if data:
                 try:
-                    Parse(data, self.port, 'client')
+                    reload(core.parser)
+                    parse = core.parser.Parse(data)
+                    new_data = parse.parse(self.port, 'client')
                 except Exception as e:
+                    new_data = data
                     print(f'ERROR: client[{self.port}]: {e}')
                     print(f'ERROR: client[{self.port}]: {data.hex()}')
                     logging.debug(f'ERROR: client[{self.port}]: {e}')
                     logging.debug(f'ERROR: client[{self.port}]: {data.hex()}')
-                self.server.sendall(data)
+                self.server.sendall(new_data)
 
 
 class Proxy(Thread):
