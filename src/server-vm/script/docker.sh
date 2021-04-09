@@ -2,6 +2,7 @@
 
 echo '#####   Start PwnAdventure3   #####'
 cd "${DOCKER_PATH}" || (>&2 echo "ERROR: The folder '${DOCKER_PATH}' does not exists."; exit)
+docker-compose down
 docker-compose up -d
 
 echo '#####   Starting...   #####'
