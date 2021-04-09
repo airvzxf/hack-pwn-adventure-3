@@ -86,7 +86,6 @@ class Parse:
         :rtype: bytes
         :return: The bytes of data which is not able to process.
         """
-        self.should_display_message = True
         length_size = 2
         length = int(struct.unpack('<h', data[:length_size])[0])
 
@@ -116,7 +115,6 @@ class Parse:
         :rtype: bytes
         :return: The bytes of data which is not able to process.
         """
-        self.should_display_message = True
         value_size = 1
         value_padding = 2
         value = str(struct.unpack('<b', data[:value_size])[0])
@@ -193,14 +191,13 @@ class Parse:
         :rtype: bytes
         :return: The bytes of data which is not able to process.
         """
-        self.should_display_message = True
         self.message += f'  |-> Weapon reloaded ---> Yes |\n'
 
         return data
 
     def _quest_change(self, data: bytes) -> bytes:
         """
-        Get the information when the ques is changed.
+        Get the information when the quest is changed.
 
         :type data: bytes
         :param data: Raw data.
@@ -221,6 +218,52 @@ class Parse:
 
         return data[last_size:]
 
+    def _monster_position(self, data: bytes) -> bytes:
+        """
+        Get the position of the monster.
+
+        :type data: bytes
+        :param data: Raw data.
+
+        :rtype: bytes
+        :return: The bytes of data which is not able to process.
+        """
+        self.message += f'  |-> Monster Position |\n'
+
+        idx_size = 4
+        idx_padding = 50
+        idx = struct.unpack('<i', data[:idx_size])[0]
+        last_size = idx_size
+        self.message += f'    |-> ID: {idx:<{idx_padding}} |\n'
+
+        position_size = 4 * 3
+        position_padding = 50
+        x, y, z = struct.unpack('<fff', data[last_size:last_size + position_size])
+        last_size += position_size
+        self.message += f'    |-> Position -> X:{x:<{position_padding}} | Y:{y:<{position_padding}} |' \
+                        f' Z:{z:<{position_padding}} |\n'
+
+        unknown1_size = 2
+        unknown1_padding = 50
+        unknown1 = struct.unpack('<h', data[last_size:last_size + unknown1_size])[0]
+        last_size += unknown1_size
+        self.message += f'    |-> Unknown #1: {unknown1:<{unknown1_padding}} |\n'
+
+        unknown2_size = 8
+        unknown2_padding = 50
+        unknown2, unknown3 = struct.unpack('<ii', data[last_size:last_size + unknown2_size])
+        last_size += unknown2_size
+        self.message += f'    |-> Unknown #2: {unknown2:<{unknown2_padding}} |\n'
+        self.message += f'    |-> Unknown #3: {unknown3:<{unknown2_padding}} |\n'
+
+        unknown4_size = 2
+        unknown4_padding = 50
+        unknown4 = struct.unpack('<h', data[last_size:last_size + unknown4_size])[0]
+        last_size += unknown4_size
+        self.message += f'    |-> Unknown #4: {unknown4:<{unknown4_padding}} |\n'
+
+        return data[last_size:]
+
     def parse(self, port: int, origin: str) -> bytes:
         """
         Start to parse the data.
@@ -237,6 +280,9 @@ class Parse:
         if len(self.data) == 2 and self.data.hex() == '0000':
             return self.data
 
+        if origin == 'client':
+            return self.data
+
         if port == 3333:
             return self.data
 
@@ -251,6 +297,7 @@ class Parse:
             27762: self._weapon_reload,
             28778: self._jump,
             29286: self._shooting,
+            29552: self._monster_position,
             30317: self._position,
         }
 
@@ -261,6 +308,11 @@ class Parse:
         unknown_data = bytearray()
 
         data = self.data
+        if origin == 'server':
+            packet_id = struct.unpack('<H', data[:2])[0]
+            if packet_id == 29552:
+                data = data[:-2]
+
         while len(data) > 1:
             packet_id = struct.unpack('<H', data[:2])[0]
 
