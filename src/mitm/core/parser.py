@@ -27,9 +27,18 @@ class Parse:
         """
         logging.basicConfig(filename='./debug.log', filemode='a', level=logging.DEBUG, format='%(message)s')
         self.message = ''
-        self.should_display_message = False
+        self.should_display_message = True
+        self.show_data = True
         self.data_original: bytes = data
         self.data: bytes = data
+
+    def _noop(self) -> None:
+        """
+        It does nothing with the data.
+
+        :rtype: None
+        """
+        return
 
     def _get_data(self, size: int) -> bytes:
         """
@@ -112,6 +121,7 @@ class Parse:
         :rtype: None
         """
         self.should_display_message = True
+        print(f'item: {self.data[:4].hex()}')
         idx, = struct.unpack('<i', self._get_data(4))
 
         self.message += f'  |-> Item\n'
@@ -214,21 +224,35 @@ class Parse:
         """
         # TODO: WIP - This method is in progress.
         self.message += f'  |-> Magic Shoot\n'
-        counter, idx,  = struct.unpack('<ih', self._get_data(6))
+        counter, idx, = struct.unpack('<ih', self._get_data(6))
 
-        if counter == 96:
-            self.message += f'    |-> {self.data[:41].hex()}'
-            self._get_data(41)
+        # if counter == 96:
+        #     self.message += f'    |-> {self.data[:41].hex()}'
+        #     self._get_data(41)
+        #
+        # idx2, = struct.unpack('<h', self._get_data(2))
+        # data2 = self.data[:22].hex()
+        # self._get_data(22)
+        #
+        # idx3, = struct.unpack('<h', self._get_data(2))
+        # data3 = self.data[:22].hex()
+        # self._get_data(22)
 
-        idx2, = struct.unpack('<h', self._get_data(2))
-        data2 = self.data[:22].hex()
-        self._get_data(22)
-
-        idx3, = struct.unpack('<h', self._get_data(2))
-        data3 = self.data[:22].hex()
-        self._get_data(22)
-
+        self.message += f'    |-> ID: {idx}\n'
         self.message += f'    |-> Counter: {counter}\n'
+
+    def _server_constant_information(self) -> None:
+        """
+        Server send constant information.
+
+        :rtype: None
+        """
+        data = self.data[:32]
+        print(f'_server_constant_information: {data.hex()}')
+        self._get_data(32)
+
+        self.message += f'  |-> Constant Information\n'
+        self.message += f'    |-> Counter: {data.hex()}\n'
 
     def parse(self, port: int, origin: str) -> bytes:
         """
@@ -243,16 +267,19 @@ class Parse:
         :rtype: bytes
         :return: Return the data with or without modifications.
         """
-        if len(self.data) == 2 and self.data.hex() == '0000':
-            return self.data
+        if origin == 'server':
+            self.data = self.data[:-2]
+            if len(self.data) == 0:
+                return self.data_original
 
         # if origin == 'client':
         #     return self.data
-
-        # if port == 3333 or origin == 'server':
+        #
+        # if origin == 'server':
         #     return self.data
 
         ids = {
+            00000: self._noop,  # 0x0000
             15729: self._client_quest_selected,  # 0x713D
             15731: self._client_weapon_slot,  # 0x733D
             24940: self._server_gun_shoot,  # 0x6c61
@@ -265,11 +292,10 @@ class Parse:
             29552: self._server_monsters_position,  # 0x7073
             30317: self._client_position,  # 0x6D76
             30840: self._server_monsters_list,  # 0x7878
+            28784: self._server_constant_information,  # 0x7070
         }
 
         self.message += f'[{origin}({port})]\n'
-        self.message += f'|-> Hex: {self.data.hex()} |\n'
-        self.message += f'|-> Raw: {self.data} |\n'
         is_unknown = False
         unknown_data = bytearray()
 
@@ -286,18 +312,24 @@ class Parse:
                 continue
 
             if is_unknown:
-                self.message += f'  |-> Unknown ---> Hex: {unknown_data.hex()} |\n'
-                self.message += f'  |-> Unknown ---> Raw: {unknown_data} |\n'
+                self.message += f'  |-> Unknown ---> Hex: {unknown_data.hex()}\n'
+                self.message += f'  |-> Unknown ---> Raw: {unknown_data}\n'
                 is_unknown = False
+                self.show_data = True
                 unknown_data = bytearray()
 
             ids.get(packet_id)()
 
         if is_unknown:
-            self.message += f'  |-> Unknown ---> Hex: {unknown_data.hex()} |\n'
-            self.message += f'  |-> Unknown ---> Raw: {unknown_data} |\n'
+            self.show_data = True
+            self.message += f'  |-> Unknown ---> Hex: {unknown_data.hex()}\n'
+            self.message += f'  |-> Unknown ---> Raw: {unknown_data}\n'
 
-        if self.should_display_message:
+        if self.should_display_message and len(self.message) > 20:
+            if self.show_data:
+                self.message += f'|-> Hex: {self.data_original.hex()}\n'
+                self.message += f'|-> Raw: {self.data_original}\n'
+            self.show_data = False
             print(self.message)
             logging.debug(self.message)
 
