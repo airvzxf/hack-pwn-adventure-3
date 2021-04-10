@@ -23,246 +23,212 @@ class Parse:
         :type data: bytes
         :param data: Raw data.
 
-        :rtype: Parse
-        :return: The object instanced of this class.
+        :rtype: None
         """
         logging.basicConfig(filename='./debug.log', filemode='a', level=logging.DEBUG, format='%(message)s')
         self.message = ''
         self.should_display_message = False
-        self.data = data
+        self.data_original: bytes = data
+        self.data: bytes = data
 
-    def _noop(self, data: bytes) -> bytes:
+    def _get_data(self, size: int) -> bytes:
         """
-        It does nothing with the data.
+        Split the data in two parts.
+        The first one is returned the second is updated in the global data.
 
-        :type data: bytes
-        :param data: Raw data.
+        :type size: int
+        :param size: Size of data which will split.
 
         :rtype: bytes
-        :return: The bytes of data which is not able to process.
+        :return: The split data.
         """
-        self.should_display_message = True
-        self.message += f'  |-> Noop ---> Hex: {data.hex()} |\n'
-        self.message += f'  |-> Noop ---> Raw: {data} |\n'
+        data = self.data[:size]
+        self.data = self.data[size:]
         return data
 
-    def _position(self, data: bytes) -> bytes:
+    def _general_position(self) -> None:
         """
         Get the position with AXIS (x,y,z) and the camera view.
-        x: float
-        y: float
-        z: float
-        view: long long
 
-        :type data: bytes
-        :param data: Raw data.
-
-        :rtype: bytes
-        :return: The bytes of data which is not able to process.
+        :rtype: None
         """
-        position_size = 4 * 3
-        position_padding = 20
-        x, y, z = struct.unpack('<fff', data[:position_size])
+        x, y, z, view, view_limit, dy, dx = struct.unpack('<ffffhbb', self._get_data(4 * 5))
 
-        last_size = position_size
-        view_size = 8
-        view_padding = 20
-        view, = struct.unpack('<Q', data[last_size:last_size + view_size])
+        self.message += f'    |-> X: {x:.{2}f} | Y: {y:.{2}f} | Z: {z:.{2}f}\n'
+        self.message += f'    |-> Direction X: {dx} | Y: {dy}\n'
+        self.message += f'    |-> View: {view:.{2}f}\n'
+        self.message += f'    |-> View limit: {view_limit}\n'
 
-        last_size += view_size
-        self.message += f'  |-> Position --->' \
-                        f' X: {x:<{position_padding}} | Y: {y:<{position_padding}} | Z: {z:<{position_padding}} |' \
-                        f' View: {view:<{view_padding}} |\n'
-
-        return data[last_size:]
-
-    def _shoot(self, data: bytes) -> bytes:
+    def _client_position(self) -> None:
         """
-        Get the information when the character shoots.
+        Get the position of your player.
 
-        :type data: bytes
-        :param data: Raw data.
-
-        :rtype: bytes
-        :return: The bytes of data which is not able to process.
+        :rtype: None
         """
-        length_size = 2
-        length = int(struct.unpack('<h', data[:length_size])[0])
+        self.message += f'  |-> My Position\n'
+        self._general_position()
 
-        name_padding = 20
-        name_size = length
-        name = str(data[length_size:length_size + name_size], 'UTF-8')
-        self.message += f'  |-> Shoot ---> Name: {name:<{name_padding}} |\n'
-
-        last_size = length_size + name_size
-        target_size = 4 * 3
-        target_padding = 18
-        x, y, z = struct.unpack('<fff', data[last_size:last_size + target_size])
-        self.message += f'  |-> Shoot ---> Target --->' \
-                        f' X: {x:<{target_padding}} | Y: {y:<{target_padding}} | Z: {z:<{target_padding}} |\n'
-
-        last_size += target_size
-
-        return data[last_size:]
-
-    def _shooting(self, data: bytes) -> bytes:
+    def _client_shoot(self) -> None:
         """
-        Get the information when the character is shooting.
+        Get the information when the your character shoots.
 
-        :type data: bytes
-        :param data: Raw data.
-
-        :rtype: bytes
-        :return: The bytes of data which is not able to process.
+        :rtype: None
         """
-        value_size = 1
-        value_padding = 2
-        value = str(struct.unpack('<b', data[:value_size])[0])
-        self.message += f'  |-> Shooting ---> Is not started?: {value:<{value_padding}} |\n'
+        length, = struct.unpack('<h', self._get_data(2))
+        name, = struct.unpack('%ds' % length, self._get_data(length))
+        name = str(name, 'UTF-8')
+        x, y, z = struct.unpack('<fff', self._get_data(4 * 3))
 
-        last_size = value_size
-        return data[last_size:]
+        self.message += f'  |-> Shoot\n'
+        self.message += f'    |-> Name: {name}\n'
+        self.message += f'    |-> Position: X: {x:{2}f} | Y: {y:{2}f} | Z: {z:{2}f}\n'
 
-    def _jump(self, data: bytes) -> bytes:
+    def _client_shooting(self) -> None:
         """
-        Get the information when the character jumps.
+        Get the information when the your character is shooting.
 
-        :type data: bytes
-        :param data: Raw data.
-
-        :rtype: bytes
-        :return: The bytes of data which is not able to process.
+        :rtype: None
         """
-        is_on_floor_size = 1
-        is_on_floor_padding = 5
-        is_on_floor = str(struct.unpack('<?', data[:is_on_floor_size])[0])
+        value, = struct.unpack('<?', self._get_data(1))
 
-        last_size = is_on_floor_size
-        self.message += f'  |-> Jump ---> Is on the floor?: {is_on_floor:<{is_on_floor_padding}} |\n'
+        self.message += f'  |-> Shooting\n'
+        self.message += f'    |-> Automatic: {value}\n'
 
-        return data[last_size:]
-
-    def _item(self, data: bytes) -> bytes:
+    def _client_jump(self) -> None:
         """
-        Get the information when the items.
+        Get the information when the your character jumps.
 
-        :type data: bytes
-        :param data: Raw data.
+        :rtype: None
+        """
+        ready, = struct.unpack('<?', self._get_data(1))
 
-        :rtype: bytes
-        :return: The bytes of data which is not able to process.
+        self.message += f'  |-> Jump\n'
+        self.message += f'    |-> Ready: {ready}\n'
+
+    def _client_item(self) -> None:
+        """
+        Get the information when your character pick up the items.
+
+        :rtype: None
         """
         self.should_display_message = True
-        item_size = 4
-        item_padding = 5
-        item = str(struct.unpack('<i', data[:item_size])[0])
+        idx, = struct.unpack('<i', self._get_data(4))
 
-        last_size = item_size
-        self.message += f'  |-> Item ---> {item:<{item_padding}} |\n'
+        self.message += f'  |-> Item\n'
+        self.message += f'    |-> ID: {idx}\n'
 
-        return data[last_size:]
-
-    def _weapon_slot(self, data: bytes) -> bytes:
+    def _client_weapon_slot(self) -> None:
         """
-        Get the information when the weapon is changed.
+        Get the information when the weapon of your character is changed.
 
-        :type data: bytes
-        :param data: Raw data.
-
-        :rtype: bytes
-        :return: The bytes of data which is not able to process.
+        :rtype: None
         """
-        weapon_size = 1
-        weapon_padding = 2
-        weapon_slot = str(struct.unpack('<B', data[:weapon_size])[0])
+        weapon_slot, = struct.unpack('<b', self._get_data(1))
 
-        last_size = weapon_size
-        self.message += f'  |-> Weapon slot ---> {weapon_slot:<{weapon_padding}} |\n'
+        self.message += f'  |-> Weapon\n'
+        self.message += f'    |-> Slot: {weapon_slot + 1}\n'
 
-        return data[last_size:]
-
-    def _weapon_reload(self, data: bytes) -> bytes:
+    def _client_weapon_reload(self) -> None:
         """
-        Get the information when the weapon is reloaded.
+        Get the information when the weapon of your character is reloaded.
 
-        :type data: bytes
-        :param data: Raw data.
-
-        :rtype: bytes
-        :return: The bytes of data which is not able to process.
+        :rtype: None
         """
-        self.message += f'  |-> Weapon reloaded ---> Yes |\n'
+        self.message += f'  |-> Weapon Reload\n'
 
-        return data
+        if self.data[:2].hex() == '6d76':
+            return
 
-    def _quest_change(self, data: bytes) -> bytes:
+        weapon_length, = struct.unpack('<h', self._get_data(2))
+        weapon = self.data[:weapon_length]
+        weapon = str(weapon, 'UTF-8')
+        self._get_data(weapon_length)
+        ammo_length, = struct.unpack('<h', self._get_data(2))
+        ammo = self.data[:ammo_length]
+        ammo = str(ammo, 'UTF-8')
+        self._get_data(ammo_length)
+        bullets, = struct.unpack('<i', self._get_data(4))
+
+        self.message += f'    |-> Name: {weapon}\n'
+        self.message += f'    |-> Ammo: {ammo}\n'
+        self.message += f'    |-> Bullets: {bullets}\n'
+
+    def _client_quest_selected(self) -> None:
         """
-        Get the information when the quest is changed.
+        Get the information when you change the quest.
 
-        :type data: bytes
-        :param data: Raw data.
-
-        :rtype: bytes
-        :return: The bytes of data which is not able to process.
+        :rtype: None
         """
-        length_size = 2
-        length = int(struct.unpack('<h', data[:length_size])[0])
+        length, = struct.unpack('<h', self._get_data(2))
+        name = self.data[:length]
+        name = str(name, 'UTF-8')
+        self._get_data(length)
 
-        last_size = length_size
-        name_size = length
-        name_padding = 20
-        name = str(data[last_size:last_size + name_size], 'UTF-8')
-        self.message += f'  |-> Available Quest ---> Change to: {name:<{name_padding}} |\n'
+        self.message += f'  |-> Quest Selected\n'
+        self.message += f'    |-> Name: {name}\n'
 
-        last_size += name_size
-
-        return data[last_size:]
-
-    def _monster_position(self, data: bytes) -> bytes:
+    def _server_monsters_position(self) -> None:
         """
-        Get the position of the monster.
+        Get the positions of the monsters.
 
-        :type data: bytes
-        :param data: Raw data.
-
-        :rtype: bytes
-        :return: The bytes of data which is not able to process.
+        :rtype: None
         """
-        self.message += f'  |-> Monster Position |\n'
+        idx, = struct.unpack('<h', self._get_data(2))
 
-        idx_size = 4
-        idx_padding = 50
-        idx = struct.unpack('<i', data[:idx_size])[0]
-        last_size = idx_size
-        self.message += f'    |-> ID: {idx:<{idx_padding}} |\n'
+        self.message += f'  |-> Monster Position\n'
+        self.message += f'    |-> ID: {idx}\n'
+        self._general_position()
 
-        position_size = 4 * 3
-        position_padding = 50
-        x, y, z = struct.unpack('<fff', data[last_size:last_size + position_size])
-        last_size += position_size
-        self.message += f'    |-> Position -> X:{x:<{position_padding}} | Y:{y:<{position_padding}} |' \
-                        f' Z:{z:<{position_padding}} |\n'
+    def _server_monsters_list(self) -> None:
+        """
+        Server send the list of monsters.
 
-        unknown1_size = 2
-        unknown1_padding = 50
-        unknown1 = struct.unpack('<h', data[last_size:last_size + unknown1_size])[0]
-        last_size += unknown1_size
-        self.message += f'    |-> Unknown #1: {unknown1:<{unknown1_padding}} |\n'
+        :rtype: None
+        """
+        idx, = struct.unpack('<i', self._get_data(4))
 
-        unknown2_size = 8
-        unknown2_padding = 50
-        unknown2, unknown3 = struct.unpack('<ii', data[last_size:last_size + unknown2_size])
-        last_size += unknown2_size
-        self.message += f'    |-> Unknown #2: {unknown2:<{unknown2_padding}} |\n'
-        self.message += f'    |-> Unknown #3: {unknown3:<{unknown2_padding}} |\n'
+        self.message += f'  |-> Monster List\n'
+        self.message += f'    |-> ID: {idx}\n'
 
-        unknown4_size = 2
-        unknown4_padding = 50
-        unknown4 = struct.unpack('<h', data[last_size:last_size + unknown4_size])[0]
-        last_size += unknown4_size
-        self.message += f'    |-> Unknown #4: {unknown4:<{unknown4_padding}} |\n'
+    def _server_gun_shoot(self) -> None:
+        """
+        Server send the information of the gun shoot.
 
-        return data[last_size:]
+        :rtype: None
+        """
+        length, = struct.unpack('<h', self._get_data(2))
+        weapon = self.data[:length]
+        weapon = str(weapon, 'UTF-8')
+        self._get_data(length)
+        bullets, = struct.unpack('<i', self._get_data(4))
+
+        self.message += f'  |-> Gun Shoot\n'
+        self.message += f'    |-> Name: {weapon}\n'
+        self.message += f'    |-> Bullets: {bullets}\n'
+
+    def _server_magic_shoot(self) -> None:
+        """
+        Server send the information of the magic shoot.
+
+        :rtype: None
+        """
+        # TODO: WIP - This method is in progress.
+        self.message += f'  |-> Magic Shoot\n'
+        counter, idx,  = struct.unpack('<ih', self._get_data(6))
+
+        if counter == 96:
+            self.message += f'    |-> {self.data[:41].hex()}'
+            self._get_data(41)
+
+        idx2, = struct.unpack('<h', self._get_data(2))
+        data2 = self.data[:22].hex()
+        self._get_data(22)
+
+        idx3, = struct.unpack('<h', self._get_data(2))
+        data3 = self.data[:22].hex()
+        self._get_data(22)
+
+        self.message += f'    |-> Counter: {counter}\n'
 
     def parse(self, port: int, origin: str) -> bytes:
         """
@@ -280,25 +246,25 @@ class Parse:
         if len(self.data) == 2 and self.data.hex() == '0000':
             return self.data
 
-        if origin == 'client':
-            return self.data
+        # if origin == 'client':
+        #     return self.data
 
-        if port == 3333:
-            return self.data
-
-        if origin == 'server':
-            return self.data
+        # if port == 3333 or origin == 'server':
+        #     return self.data
 
         ids = {
-            15729: self._quest_change,
-            15731: self._weapon_slot,
-            25957: self._item,
-            26922: self._shoot,
-            27762: self._weapon_reload,
-            28778: self._jump,
-            29286: self._shooting,
-            29552: self._monster_position,
-            30317: self._position,
+            15729: self._client_quest_selected,  # 0x713D
+            15731: self._client_weapon_slot,  # 0x733D
+            24940: self._server_gun_shoot,  # 0x6c61
+            24941: self._server_magic_shoot,  # 0x6d61
+            25957: self._client_item,  # 0x6565
+            26922: self._client_shoot,  # 0x2A69
+            27762: self._client_weapon_reload,  # 0x726C
+            28778: self._client_jump,  # 0x6A70
+            29286: self._client_shooting,  # 0x6672
+            29552: self._server_monsters_position,  # 0x7073
+            30317: self._client_position,  # 0x6D76
+            30840: self._server_monsters_list,  # 0x7878
         }
 
         self.message += f'[{origin}({port})]\n'
@@ -307,22 +273,16 @@ class Parse:
         is_unknown = False
         unknown_data = bytearray()
 
-        data = self.data
-        if origin == 'server':
-            packet_id = struct.unpack('<H', data[:2])[0]
-            if packet_id == 29552:
-                data = data[:-2]
-
-        while len(data) > 1:
-            packet_id = struct.unpack('<H', data[:2])[0]
+        while len(self.data) > 1:
+            packet_id, = struct.unpack('<H', self._get_data(2))
 
             if packet_id not in ids:
                 is_unknown = True
                 self.should_display_message = True
-                unknown_data += data[:1]
-                if len(data) == 2:
-                    unknown_data += data[1:]
-                data = data[1:]
+                unknown_data += self.data[:1]
+                if len(self.data) == 2:
+                    unknown_data += self.data[1:]
+                self.data: bytes = self.data[1:]
                 continue
 
             if is_unknown:
@@ -331,7 +291,7 @@ class Parse:
                 is_unknown = False
                 unknown_data = bytearray()
 
-            data = ids.get(packet_id, self._noop)(data[2:])
+            ids.get(packet_id)()
 
         if is_unknown:
             self.message += f'  |-> Unknown ---> Hex: {unknown_data.hex()} |\n'
@@ -341,4 +301,4 @@ class Parse:
             print(self.message)
             logging.debug(self.message)
 
-        return self.data
+        return self.data_original
