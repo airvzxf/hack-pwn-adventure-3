@@ -29,8 +29,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.provision :shell, path: "script/docker.sh", env: {"DOCKER_PATH" => DOCKER_PATH}, run: 'always'
 
-  config.trigger.before :halt do |trigger|
-    trigger.info = "Backing up of the database."
+  config.trigger.before :halt, :destroy do |trigger|
+    trigger.name = "Backing up of the database."
     trigger.run = {path: "./backup-database.sh"}
   end
 end

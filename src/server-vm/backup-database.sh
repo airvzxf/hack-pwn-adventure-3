@@ -1,7 +1,10 @@
 #!/usr/bin/env sh
 
-rm -f docker/postgres-data/data.sql
-vagrant ssh -- -tt 'docker exec -it docker_master_1 /bin/bash -c "sudo -u pwn3 pg_dump master > /opt/pwn3/postgres-data/data.sql"'
+vagrant ssh -- -tt 'docker exec -it docker_master_1 ' \
+  '/bin/bash -c "' \
+  'rm -f /opt/pwn3/postgres-data/data.sql;' \
+  'sudo -u pwn3 pg_dump master > /opt/pwn3/postgres-data/data.sql;' \
+  '"'
 
 # vagrant ssh
 # # Vagrant
