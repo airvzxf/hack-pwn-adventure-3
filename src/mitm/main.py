@@ -7,6 +7,7 @@ client and server but we have the opportunity to analyze or modify this informat
 import os
 
 from core.proxy import Proxy
+from core.queue import Queue
 
 
 def main() -> None:
@@ -34,8 +35,16 @@ def main() -> None:
             cmd = input('>>> ')
             if cmd in ('quit', 'q', 'exit'):
                 os._exit(0)
-            if cmd == 'hello':
+            elif cmd == 'hello':
                 print('Hello World!')
+            elif cmd[0:2].lower() == 's ':
+                for server in game_servers:
+                    if server.running:
+                        Queue.SERVER_QUEUE.append(bytearray.fromhex(cmd[2:]))
+            elif cmd[0:2].lower() == 'c ':
+                for server in game_servers:
+                    if server.running:
+                        Queue.CLIENT_QUEUE.append(bytearray.fromhex(cmd[2:]))
         except Exception as e:
             print(f'ERROR: Input section ---> {e}')
 

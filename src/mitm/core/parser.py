@@ -10,6 +10,8 @@ GPL-3.0 License
 import logging
 import struct
 
+from core.queue import Queue
+
 
 class Parse:
     """
@@ -27,8 +29,8 @@ class Parse:
         """
         logging.basicConfig(filename='./debug.log', filemode='a', level=logging.DEBUG, format='%(message)s')
         self.message = ''
-        self.should_display_message = True
-        self.show_data = True
+        self.should_display_message = False
+        self.show_data = False
         self.data_original: bytes = data
         self.data: bytes = data
 
@@ -61,12 +63,14 @@ class Parse:
 
         :rtype: None
         """
-        x, y, z, view, view_limit, dy, dx = struct.unpack('<ffffhbb', self._get_data(4 * 5))
+        x, y, z, = struct.unpack('<fff', self._get_data(4 * 3))
+        view = self.data[:4]
+        self._get_data(4)
+        view_limit, dy, dx = struct.unpack('<hbb', self._get_data(4))
+        message = f'{x:10.2f} X | {y:10.2f} Y | {z:10.2f} Z | Direction X: {dx:4} | Y: {dy:4} | ' \
+                  f'View: {view.hex()} | View limit: {view_limit}'
 
-        self.message += f'    |-> X: {x:.{2}f} | Y: {y:.{2}f} | Z: {z:.{2}f}\n'
-        self.message += f'    |-> Direction X: {dx} | Y: {dy}\n'
-        self.message += f'    |-> View: {view:.{2}f}\n'
-        self.message += f'    |-> View limit: {view_limit}\n'
+        self.message += f'    |-> {message}\n'
 
     def _client_position(self) -> None:
         """
@@ -121,7 +125,6 @@ class Parse:
         :rtype: None
         """
         self.should_display_message = True
-        print(f'item: {self.data[:4].hex()}')
         idx, = struct.unpack('<i', self._get_data(4))
 
         self.message += f'  |-> Item\n'
@@ -177,17 +180,29 @@ class Parse:
         self.message += f'  |-> Quest Selected\n'
         self.message += f'    |-> Name: {name}\n'
 
-    def _server_monsters_position(self) -> None:
+    def _server_my_position(self) -> None:
         """
-        Get the positions of the monsters.
+        Get the positions of my character.
 
         :rtype: None
         """
-        idx, = struct.unpack('<h', self._get_data(2))
+        self.message += f'  |-> My Character\n'
+        self._server_character_position()
 
-        self.message += f'  |-> Monster Position\n'
+    def _server_character_position(self) -> None:
+        """
+        Get the positions of the character.
+
+        :rtype: None
+        """
+        idx, = struct.unpack('<I', self._get_data(4))
+
+        self.message += f'  |-> Character Position\n'
         self.message += f'    |-> ID: {idx}\n'
         self._general_position()
+        unknown_1 = self.data[:4]
+        self._get_data(4)
+        self.message += f'    |-> Unknown #1: {unknown_1.hex()}\n'
 
     def _server_monsters_list(self) -> None:
         """
@@ -222,23 +237,9 @@ class Parse:
 
         :rtype: None
         """
-        # TODO: WIP - This method is in progress.
+        counter, = struct.unpack('<i', self._get_data(4))
+
         self.message += f'  |-> Magic Shoot\n'
-        counter, idx, = struct.unpack('<ih', self._get_data(6))
-
-        # if counter == 96:
-        #     self.message += f'    |-> {self.data[:41].hex()}'
-        #     self._get_data(41)
-        #
-        # idx2, = struct.unpack('<h', self._get_data(2))
-        # data2 = self.data[:22].hex()
-        # self._get_data(22)
-        #
-        # idx3, = struct.unpack('<h', self._get_data(2))
-        # data3 = self.data[:22].hex()
-        # self._get_data(22)
-
-        self.message += f'    |-> ID: {idx}\n'
         self.message += f'    |-> Counter: {counter}\n'
 
     def _server_constant_information(self) -> None:
@@ -254,48 +255,68 @@ class Parse:
         self.message += f'  |-> Constant Information\n'
         self.message += f'    |-> Counter: {data.hex()}\n'
 
-    def parse(self, port: int, origin: str) -> bytes:
+    def _server_init(self) -> None:
         """
-        Start to parse the data.
+        Server send initial information in some specific events during the game.
+
+        :rtype: None
+        """
+        idx, = struct.unpack('<I', self._get_data(4))
+        unknown_1 = self.data[:4]
+        self._get_data(4)
+        boolean, = struct.unpack('<b', self._get_data(1))
+        length, = struct.unpack('<h', self._get_data(2))
+        name = str(self.data[:length], 'UTF-8')
+        self._get_data(length)
+        x, y, z, = struct.unpack('<fff', self._get_data(12))
+        d1 = self.data[:1]
+        d2 = self.data[1:2]
+        d3 = self.data[2:3]
+        d4 = self.data[3:4]
+        self._get_data(4)
+        unknown_2 = self.data[:2]
+        self._get_data(2)
+        type_object, = struct.unpack('<i', self._get_data(4))
+
+        # Auto loot
+        # TODO: Fix the bug when the bear is running and die or use the Fire Ball looks like it is broken. 0x7073
+        print(f'name: {name}')
+        if "Drop" in name:
+            pickup = struct.pack("=HI", 0x6565, idx)
+            Queue.SERVER_QUEUE.append(pickup)
+            print(f'--*-- Pickup the {name} -> ID: {idx} | Hex: {pickup.hex()}')
+
+        message = f'-> ID: {idx:<{5}} | True: {boolean} | Type: {type_object:<{5}} | ' \
+                  f'{unknown_1.hex()} {unknown_2.hex()} | ' \
+                  f'{x:10.2f} X | {y:10.2f} Y | {z:10.2f} Z | D: {d1.hex()} {d2.hex()} {d3.hex()} {d4.hex()} | ' \
+                  f'{name}'
+        self.message += f'  |-> Init Information\n'
+        self.message += f'    |-> {message}\n'
+
+    def client(self, port: int) -> bytes:
+        """
+        Start to parse the data of the client.
 
         :type port: int
         :param port: The number of the port of the communication.
 
-        :type origin: str
-        :param origin: If the data comes from client or server.
-
         :rtype: bytes
         :return: Return the data with or without modifications.
         """
-        if origin == 'server':
-            self.data = self.data[:-2]
-            if len(self.data) == 0:
-                return self.data_original
-
-        # if origin == 'client':
-        #     return self.data
-        #
-        # if origin == 'server':
-        #     return self.data
 
         ids = {
             00000: self._noop,  # 0x0000
             15729: self._client_quest_selected,  # 0x713D
             15731: self._client_weapon_slot,  # 0x733D
-            24940: self._server_gun_shoot,  # 0x6c61
-            24941: self._server_magic_shoot,  # 0x6d61
             25957: self._client_item,  # 0x6565
             26922: self._client_shoot,  # 0x2A69
             27762: self._client_weapon_reload,  # 0x726C
             28778: self._client_jump,  # 0x6A70
             29286: self._client_shooting,  # 0x6672
-            29552: self._server_monsters_position,  # 0x7073
             30317: self._client_position,  # 0x6D76
-            30840: self._server_monsters_list,  # 0x7878
-            28784: self._server_constant_information,  # 0x7070
         }
 
-        self.message += f'[{origin}({port})]\n'
+        self.message += f'[client({port})]\n'
         is_unknown = False
         unknown_data = bytearray()
 
@@ -312,8 +333,8 @@ class Parse:
                 continue
 
             if is_unknown:
-                self.message += f'  |-> Unknown ---> Hex: {unknown_data.hex()}\n'
-                self.message += f'  |-> Unknown ---> Raw: {unknown_data}\n'
+                self.message += f'  |-> Unknown #1.1 ---> Hex: {unknown_data.hex()}\n'
+                self.message += f'  |-> Unknown #1.2 ---> Raw: {unknown_data}\n'
                 is_unknown = False
                 self.show_data = True
                 unknown_data = bytearray()
@@ -322,8 +343,75 @@ class Parse:
 
         if is_unknown:
             self.show_data = True
-            self.message += f'  |-> Unknown ---> Hex: {unknown_data.hex()}\n'
-            self.message += f'  |-> Unknown ---> Raw: {unknown_data}\n'
+            self.message += f'  |-> Unknown #1.3 ---> Hex: {unknown_data.hex()}\n'
+            self.message += f'  |-> Unknown #1.4 ---> Raw: {unknown_data}\n'
+
+        if self.should_display_message and len(self.message) > 20:
+            if self.show_data:
+                self.message += f'|-> Hex: {self.data_original.hex()}\n'
+                self.message += f'|-> Raw: {self.data_original}\n'
+            self.show_data = False
+            print(self.message)
+            logging.debug(self.message)
+
+        return self.data_original
+
+    def server(self, port: int) -> bytes:
+        """
+        Start to parse the data of the server.
+
+        :type port: int
+        :param port: The number of the port of the communication.
+
+        :rtype: bytes
+        :return: Return the data with or without modifications.
+        """
+        self.data = self.data[:-2]
+        if len(self.data) == 0:
+            return self.data_original
+
+        ids = {
+            00000: self._noop,  # 0x0000
+            24940: self._server_gun_shoot,  # 0x6c61
+            24941: self._server_magic_shoot,  # 0x6d61
+            27501: self._server_init,  # 0x6d6b
+            28784: self._server_constant_information,  # 0x7070
+            29552: self._server_character_position,  # 0x7073
+            30840: self._server_monsters_list,  # 0x7878
+            30317: self._server_my_position,  # 0x6d76
+        }
+
+        self.message += f'[server({port})]\n'
+        is_unknown = False
+        unknown_data = bytearray()
+
+        while len(self.data) > 1:
+            packet_id, = struct.unpack('<H', self._get_data(2))
+
+            if packet_id not in ids:
+                is_unknown = True
+                self.should_display_message = True
+                unknown_data += self.data[:1]
+                if len(self.data) == 2:
+                    unknown_data += self.data[1:]
+                self.data: bytes = self.data[1:]
+                continue
+
+            if is_unknown:
+                self.message += f'  |-> Data         ---> Hex: {self.data_original.hex()}\n'
+                self.message += f'  |-> Unknown #2.1 ---> Hex: {unknown_data.hex()}\n'
+                self.message += f'  |-> Unknown #2.2 ---> Raw: {unknown_data}\n'
+                is_unknown = False
+                self.show_data = True
+                unknown_data = bytearray()
+
+            ids.get(packet_id)()
+
+        if is_unknown:
+            self.show_data = True
+            self.message += f'  |-> Data         ---> Hex: {self.data_original.hex()}\n'
+            self.message += f'  |-> Unknown #2.3 ---> Hex: {unknown_data.hex()}\n'
+            self.message += f'  |-> Unknown #2.4 ---> Raw: {unknown_data}\n'
 
         if self.should_display_message and len(self.message) > 20:
             if self.show_data:

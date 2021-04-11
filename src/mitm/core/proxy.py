@@ -13,6 +13,7 @@ from importlib import reload
 from threading import Thread
 
 import core.parser
+from core.queue import Queue
 
 
 class ServerToClient(Thread):
@@ -52,13 +53,17 @@ class ServerToClient(Thread):
                 try:
                     reload(core.parser)
                     parse = core.parser.Parse(data)
-                    new_data = parse.parse(self.port, 'server')
+                    if len(Queue.CLIENT_QUEUE) > 0:
+                        packet: bytes = Queue.CLIENT_QUEUE.pop()
+                        print(f'--*-- Send to client: {packet.hex()}')
+                        self.client.sendall(packet)
+                    new_data = parse.server(self.port)
                 except Exception as e:
                     new_data = data
                     print(f'ERROR: server[{self.port}]: {e}')
-                    print(f'ERROR: server[{self.port}]: {data.hex()}')
+                    print(f'       -> {data.hex()}')
                     logging.debug(f'ERROR: server[{self.port}]: {e}')
-                    logging.debug(f'ERROR: server[{self.port}]: {data.hex()}')
+                    logging.debug(f'       -> {data.hex()}')
                 self.client.sendall(new_data)
 
 
@@ -103,13 +108,17 @@ class ClientToServer(Thread):
                 try:
                     reload(core.parser)
                     parse = core.parser.Parse(data)
-                    new_data = parse.parse(self.port, 'client')
+                    if len(Queue.SERVER_QUEUE) > 0:
+                        packet: bytes = Queue.SERVER_QUEUE.pop()
+                        print(f'--*-- Send to server: {packet.hex()}')
+                        self.server.sendall(packet)
+                    new_data = parse.client(self.port)
                 except Exception as e:
                     new_data = data
                     print(f'ERROR: client[{self.port}]: {e}')
-                    print(f'ERROR: client[{self.port}]: {data.hex()}')
+                    print(f'       -> {data.hex()}')
                     logging.debug(f'ERROR: client[{self.port}]: {e}')
-                    logging.debug(f'ERROR: client[{self.port}]: {data.hex()}')
+                    logging.debug(f'       -> {data.hex()}')
                 self.server.sendall(new_data)
 
 
@@ -138,6 +147,7 @@ class Proxy(Thread):
         self.from_host = from_host
         self.to_host = to_host
         self.port = port
+        self.running = False
         logging.basicConfig(filename='./debug.log', filemode='w', level=logging.DEBUG, format='%(message)s')
 
     def run(self) -> None:
@@ -155,6 +165,7 @@ class Proxy(Thread):
             print(f'[proxy({self.port})] connection established')
             client_to_server.server = server_to_client.server
             server_to_client.client = client_to_server.client
+            self.running = True
 
             client_to_server.start()
             server_to_client.start()
