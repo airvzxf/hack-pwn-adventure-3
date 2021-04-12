@@ -77,6 +77,7 @@ class Package:
                     if len(queue) > 0:
                         packet: bytes = queue.pop()
                         print(f'--*-- Send to {destination}: {packet.hex()}')
+                        debug(f'--*-- Send to {destination}: {packet.hex()}')
                         self.destination.sendall(packet)
                     reload(core.parser)
                     parse = core.parser.Parse(data)
