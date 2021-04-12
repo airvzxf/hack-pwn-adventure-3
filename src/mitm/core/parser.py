@@ -125,7 +125,6 @@ class Parse:
 
         :rtype: None
         """
-        self.should_display_message = True
         idx, = unpack('<i', self._get_data(4))
 
         self.message += f'  |-> Item\n'
@@ -395,24 +394,26 @@ class Parse:
         unknown_data = bytearray()
 
         while len(self.data) > 1:
-            packet_id = self._convert_data_to_short_unsigned()
+            packet_id, = unpack('<H', self.data[:2])
 
             if packet_id not in ids:
                 is_unknown = True
                 self.should_display_message = True
-                unknown_data += packet_id.to_bytes(2, byteorder='little')
+                unknown_data += self.data[:1]
+                self.data = self.data[1:]
                 if len(self.data) == 1:
                     unknown_data += self.data
                 continue
 
             if is_unknown:
+                is_unknown = False
+                self.show_data = True
                 self.message += f'  |-> Unknown ---> Hex: {unknown_data.hex()}\n'
                 self.message += f'  |-> Unknown ---> Raw: {unknown_data}\n'
                 self.message += f'  |-> -----------------\n'
-                is_unknown = False
-                self.show_data = True
                 unknown_data = bytearray()
 
+            packet_id = self._convert_data_to_short_unsigned()
             ids.get(packet_id)()
 
         if is_unknown:
