@@ -7,9 +7,9 @@ server. Also it is running in threads to improve the performance and catch all t
 This code is partially taken bye LiveOverflow/PwnAdventure3 (https://github.com/LiveOverflow/PwnAdventure3) under the
 GPL-3.0 License
 """
-import logging
-import socket
 from importlib import reload
+from logging import debug, basicConfig, DEBUG
+from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
 from threading import Thread
 
 import core.parser
@@ -35,10 +35,20 @@ class ServerToClient(Thread):
         :return: The object instanced of this class.
         """
         super(ServerToClient, self).__init__()
+        self.name = f'Server -> Client [{port}]'
+        self._running = True
         self.client = None
         self.port = port
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server = socket(AF_INET, SOCK_STREAM)
         self.server.connect((host, port))
+
+    def terminate(self) -> None:
+        """
+        Stop the execution of the current thread proxy.
+
+        :rtype: None
+        """
+        self._running = False
 
     def run(self) -> None:
         """
@@ -47,7 +57,7 @@ class ServerToClient(Thread):
 
         :rtype: None
         """
-        while True:
+        while self._running:
             data: bytes = self.server.recv(4096)
             if data:
                 try:
@@ -62,9 +72,10 @@ class ServerToClient(Thread):
                     new_data = data
                     print(f'ERROR: server[{self.port}]: {e}')
                     print(f'       -> {data.hex()}')
-                    logging.debug(f'ERROR: server[{self.port}]: {e}')
-                    logging.debug(f'       -> {data.hex()}')
+                    debug(f'ERROR: server[{self.port}]: {e}')
+                    debug(f'       -> {data.hex()}')
                 self.client.sendall(new_data)
+        self.server.close()
 
 
 class ClientToServer(Thread):
@@ -86,14 +97,24 @@ class ClientToServer(Thread):
         :return: The object instanced of this class.
         """
         super(ClientToServer, self).__init__()
+        self.name = f'Client -> Server [{port}]'
+        self._running = True
         self.server = None
         self.port = port
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock = socket(AF_INET, SOCK_STREAM)
+        sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         sock.bind((host, port))
         sock.listen(1)
         # Waiting for a connection
         self.client, addr = sock.accept()
+
+    def terminate(self) -> None:
+        """
+        Stop the execution of the current thread proxy.
+
+        :rtype: None
+        """
+        self._running = False
 
     def run(self) -> None:
         """
@@ -102,7 +123,7 @@ class ClientToServer(Thread):
 
         :rtype: None
         """
-        while True:
+        while self._running:
             data = self.client.recv(4096)
             if data:
                 try:
@@ -117,9 +138,10 @@ class ClientToServer(Thread):
                     new_data = data
                     print(f'ERROR: client[{self.port}]: {e}')
                     print(f'       -> {data.hex()}')
-                    logging.debug(f'ERROR: client[{self.port}]: {e}')
-                    logging.debug(f'       -> {data.hex()}')
+                    debug(f'ERROR: client[{self.port}]: {e}')
+                    debug(f'       -> {data.hex()}')
                 self.server.sendall(new_data)
+        self.client.close()
 
 
 class Proxy(Thread):
@@ -144,11 +166,13 @@ class Proxy(Thread):
         :return: The object instanced of this class.
         """
         super(Proxy, self).__init__()
+        self.name = f'Proxy [{port}]'
         self.from_host = from_host
         self.to_host = to_host
         self.port = port
         self.running = False
-        logging.basicConfig(filename='./debug.log', filemode='w', level=logging.DEBUG, format='%(message)s')
+        self._running = True
+        basicConfig(filename='./debug.log', filemode='w', level=DEBUG, format='%(message)s')
 
     def run(self) -> None:
         """
@@ -157,15 +181,27 @@ class Proxy(Thread):
 
         :rtype: None
         """
-        while True:
-            print(f'[proxy({self.port})] setting up')
+        connection_thread = []
+        while self._running:
+            print(f'Proxy [{self.port}]: Setting up')
             client_to_server = ClientToServer(self.from_host, self.port)
             server_to_client = ServerToClient(self.to_host, self.port)
 
-            print(f'[proxy({self.port})] connection established')
+            print(f'Proxy [{self.port}]: Connection established')
             client_to_server.server = server_to_client.server
             server_to_client.client = client_to_server.client
             self.running = True
 
+            if connection_thread:
+                client_thread, server_thread = connection_thread.pop()
+                client_thread.terminate()
+                server_thread.terminate()
+
             client_to_server.start()
             server_to_client.start()
+            connection_thread.append((client_to_server, server_to_client))
+
+        if connection_thread:
+            client_thread, server_thread = connection_thread.pop()
+            client_thread.terminate()
+            server_thread.terminate()
