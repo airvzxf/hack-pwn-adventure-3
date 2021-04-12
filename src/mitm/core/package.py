@@ -10,6 +10,8 @@ GPL-3.0 License
 from importlib import reload
 from logging import debug
 from socket import socket
+from sys import exc_info
+from traceback import format_exception
 
 import core.parser
 from core.queue import Queue
@@ -61,26 +63,34 @@ class Package:
         """
         if self.is_server:
             destination = 'client'
+            source = 'server'
             queue = Queue.CLIENT_QUEUE
         else:
             destination = 'server'
+            source = 'client'
             queue = Queue.SERVER_QUEUE
 
         while self.running:
             data: bytes = self.source.recv(4096)
             if data:
                 try:
-                    reload(core.parser)
-                    parse = core.parser.Parse(data)
                     if len(queue) > 0:
                         packet: bytes = queue.pop()
                         print(f'--*-- Send to {destination}: {packet.hex()}')
                         self.destination.sendall(packet)
-                    parse.server(self.port)
+                    reload(core.parser)
+                    parse = core.parser.Parse(data)
+                    if self.is_server:
+                        parse.server(self.port)
+                    else:
+                        parse.client(self.port)
                 except Exception as e:
-                    print(f'ERROR: server[{self.port}]: {e}')
-                    print(f'       -> {data.hex()}')
-                    debug(f'ERROR: server[{self.port}]: {e}')
-                    debug(f'       -> {data.hex()}')
+                    error_type, value, traceback = exc_info()
+                    message = f'ERROR: {source}[{self.port}]: {e}\n' \
+                              f'{"".join(format_exception(error_type, value, traceback))}' \
+                              f'  -> {data.hex()}\n' \
+                              f'\n\n'
+                    print(message)
+                    debug(message)
                 self.destination.sendall(data)
         self.source.close()
