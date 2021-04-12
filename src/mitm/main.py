@@ -34,17 +34,22 @@ def main() -> None:
 
     while True:
         try:
-            cmd = input('>>> ')
+            cmd = input('>>> ').lower()
             if cmd == 'hello':
                 print('Hello World!')
             elif cmd in ('quit', 'q', 'exit'):
                 for thread in threading_enumerate():
                     kill(thread.native_id, SIGTERM)
-            elif cmd[0:2].lower() == 's ':
+            elif cmd in ('t', 'thread', 'threads'):
+                for thread in threading_enumerate():
+                    message = f'| {thread.name:>25} | PID {thread.native_id} | ID {thread.ident} | ' \
+                              f'Alive {thread.is_alive()} | Daemon {thread.daemon} |'
+                    print(message)
+            elif cmd[0:2] == 's ':
                 for client_server in clients:
                     if client_server.running:
                         Queue.SERVER_QUEUE.append(bytearray.fromhex(cmd[2:]))
-            elif cmd[0:2].lower() == 'c ':
+            elif cmd[0:2] == 'c ':
                 for client_server in clients:
                     if client_server.running:
                         Queue.CLIENT_QUEUE.append(bytearray.fromhex(cmd[2:]))
