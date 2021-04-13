@@ -62,12 +62,12 @@ class Package:
         :rtype: None
         """
         if self.is_server:
-            destination = 'client'
             source = 'server'
+            destination = 'client'
             queue = Queue.CLIENT_QUEUE
         else:
-            destination = 'server'
             source = 'client'
+            destination = 'server'
             queue = Queue.SERVER_QUEUE
 
         while self.running:
@@ -76,8 +76,9 @@ class Package:
                 try:
                     if len(queue) > 0:
                         packet: bytes = queue.pop()
-                        print(f'--*-- Send to {destination}: {packet.hex()}')
-                        debug(f'--*-- Send to {destination}: {packet.hex()}')
+                        message = f'--*-- Send to {destination}: {packet.hex()}'
+                        print(message)
+                        debug(message)
                         self.destination.sendall(packet)
                     reload(core.parser)
                     parse = core.parser.Parse(data)

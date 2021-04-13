@@ -7,6 +7,7 @@ The patterns which are not discovered yet, will show the raw data in hexadecimal
 This code is partially taken bye LiveOverflow/PwnAdventure3 (https://github.com/LiveOverflow/PwnAdventure3) under the
 GPL-3.0 License
 """
+from datetime import datetime
 from logging import basicConfig, DEBUG, debug
 from struct import unpack, pack
 
@@ -34,7 +35,16 @@ class Parse:
         self.data_original: bytes = data
         self.data: bytes = data
 
-    def _convert_data_to_short_unsigned(self) -> int:
+    def _get_number_int_unsigned(self) -> int:
+        """
+        Convert Raw data to int unsigned number.
+
+        :rtype: int
+        :return: Return the extracted value.
+        """
+        return unpack('<I', self._get_data(4))[0]
+
+    def _get_number_short_unsigned(self) -> int:
         """
         Convert Raw data to short unsigned number.
 
@@ -88,7 +98,7 @@ class Parse:
 
         :rtype: None
         """
-        length, = unpack('<h', self._get_data(2))
+        length = self._get_number_short_unsigned()
         name, = unpack('%ds' % length, self._get_data(length))
         name = str(name, 'UTF-8')
         x, y, z = unpack('<fff', self._get_data(4 * 3))
@@ -125,12 +135,12 @@ class Parse:
 
         :rtype: None
         """
-        idx, = unpack('<i', self._get_data(4))
+        idx = self._get_number_int_unsigned()
 
         self.message += f'  |-> Item\n'
         self.message += f'    |-> ID: {idx}\n'
 
-    def _client_weapon_slot(self) -> None:
+    def _general_weapon_slot(self) -> None:
         """
         Get the information when the weapon of your character is changed.
 
@@ -149,19 +159,21 @@ class Parse:
         """
         self.message += f'  |-> Weapon Reload\n'
 
-        if self.data[:2].hex() == '6d76':
-            return
+    def _server_weapon_reload(self) -> None:
+        """
+        Get the information when the weapon of your character is reloaded.
 
-        weapon_length, = unpack('<h', self._get_data(2))
-        weapon = self.data[:weapon_length]
-        weapon = str(weapon, 'UTF-8')
+        :rtype: None
+        """
+        weapon_length = self._get_number_short_unsigned()
+        weapon = str(self.data[:weapon_length], 'UTF-8')
         self._get_data(weapon_length)
-        ammo_length, = unpack('<h', self._get_data(2))
-        ammo = self.data[:ammo_length]
-        ammo = str(ammo, 'UTF-8')
+        ammo_length = self._get_number_short_unsigned()
+        ammo = str(self.data[:ammo_length], 'UTF-8')
         self._get_data(ammo_length)
-        bullets, = unpack('<i', self._get_data(4))
+        bullets = self._get_number_int_unsigned()
 
+        self.message += f'  |-> Weapon Reload\n'
         self.message += f'    |-> Name: {weapon}\n'
         self.message += f'    |-> Ammo: {ammo}\n'
         self.message += f'    |-> Bullets: {bullets}\n'
@@ -172,7 +184,7 @@ class Parse:
 
         :rtype: None
         """
-        length, = unpack('<h', self._get_data(2))
+        length = self._get_number_short_unsigned()
         name = self.data[:length]
         name = str(name, 'UTF-8')
         self._get_data(length)
@@ -204,6 +216,9 @@ class Parse:
         """
         self.message += f'  |-> My Character\n'
         self._server_character_position()
+        self._general_position()
+        idx_3 = self._get_number_int_unsigned()
+        self.message += f'    |-> ID #3: {idx_3}\n'
 
     def _server_character_position(self) -> None:
         """
@@ -211,14 +226,13 @@ class Parse:
 
         :rtype: None
         """
-        idx, = unpack('<I', self._get_data(4))
+        idx = self._get_number_int_unsigned()
 
         self.message += f'  |-> Character Position\n'
-        self.message += f'    |-> ID: {idx}\n'
+        self.message += f'    |-> ID #1: {idx}\n'
         self._general_position()
-        unknown_1 = self.data[:4]
-        self._get_data(4)
-        self.message += f'    |-> Unknown #1: {unknown_1.hex()}\n'
+        idx_2 = self._get_number_int_unsigned()
+        self.message += f'    |-> ID #2: {idx_2}\n'
 
     def _server_monsters_list(self) -> None:
         """
@@ -226,7 +240,7 @@ class Parse:
 
         :rtype: None
         """
-        idx, = unpack('<i', self._get_data(4))
+        idx = self._get_number_int_unsigned()
 
         self.message += f'  |-> Monster List\n'
         self.message += f'    |-> ID: {idx}\n'
@@ -237,11 +251,11 @@ class Parse:
 
         :rtype: None
         """
-        length, = unpack('<h', self._get_data(2))
+        length = self._get_number_short_unsigned()
         weapon = self.data[:length]
         weapon = str(weapon, 'UTF-8')
         self._get_data(length)
-        bullets, = unpack('<i', self._get_data(4))
+        bullets = self._get_number_int_unsigned()
 
         self.message += f'  |-> Gun Shoot\n'
         self.message += f'    |-> Name: {weapon}\n'
@@ -253,7 +267,7 @@ class Parse:
 
         :rtype: None
         """
-        counter, = unpack('<i', self._get_data(4))
+        counter = self._get_number_int_unsigned()
 
         self.message += f'  |-> Magic Shoot\n'
         self.message += f'    |-> Counter: {counter}\n'
@@ -277,11 +291,11 @@ class Parse:
 
         :rtype: None
         """
-        idx, = unpack('<I', self._get_data(4))
+        idx = self._get_number_int_unsigned()
         unknown_1 = self.data[:4]
         self._get_data(4)
         boolean, = unpack('<b', self._get_data(1))
-        length, = unpack('<h', self._get_data(2))
+        length = self._get_number_short_unsigned()
         name = str(self.data[:length], 'UTF-8')
         self._get_data(length)
         x, y, z, = unpack('<fff', self._get_data(12))
@@ -292,13 +306,13 @@ class Parse:
         self._get_data(4)
         unknown_2 = self.data[:2]
         self._get_data(2)
-        type_object, = unpack('<i', self._get_data(4))
+        type_object = self._get_number_int_unsigned()
 
         # Auto loot
         if 'Drop' in name:
             pickup = pack('=HI', 0x6565, idx)
             Queue.SERVER_QUEUE.append(pickup)
-            pickup_message = f'--*-- Pickup the {name} -> ID: {idx} | Hex: {pickup.hex()}'
+            pickup_message = f'--*-- Pickup the {name} -> ID: {idx} | Hex: {pickup.hex()}\n'
             print(pickup_message)
             debug(pickup_message)
 
@@ -321,6 +335,72 @@ class Parse:
         self.message += f'    |-> Character: {idx}\n'
         self.message += f'    |-> Health: {health}\n'
 
+    def _server_character_action(self) -> None:
+        """
+        Server send information about the action of the character specific the NPC.
+
+        :rtype: None
+        """
+        status = None
+        idx, length, = unpack('<IH', self._get_data(6))
+        action = str(self.data[:length], 'UTF-8')
+        self._get_data(length)
+        if len(self.data) > 0:
+            last_digit = self.data[:1].hex()
+            if last_digit in ('00', '01'):
+                status, = unpack('<?', self._get_data(1))
+
+        self.message += f'  |-> Action\n'
+        self.message += f'    |-> Character: {idx} | {action} | {status}\n'
+
+    def _server_item(self) -> None:
+        """
+        Server send information about the item.
+
+        :rtype: None
+        """
+        length = self._get_number_short_unsigned()
+        name = str(self.data[:length], 'UTF-8')
+        self._get_data(length)
+        amount = self._get_number_int_unsigned()
+
+        self.message += f'  |-> Item\n'
+        self.message += f'    |-> Name: {name}\n'
+        self.message += f'    |-> Amount: {amount}\n'
+
+    def _server_item_recollection(self) -> None:
+        """
+        Server send information about the item recollected.
+
+        :rtype: None
+        """
+        length = self._get_number_short_unsigned()
+        name = str(self.data[:length], 'UTF-8')
+        self._get_data(length)
+        amount = self._get_number_int_unsigned()
+
+        self.message += f'  |-> Item Recollected\n'
+        self.message += f'    |-> Name: {name}\n'
+        self.message += f'    |-> Amount: {amount}\n'
+
+    def _server_character_events(self) -> None:
+        """
+        Server send information about the characters events.
+
+        :rtype: None
+        """
+        idx = self._get_number_int_unsigned()
+        length = self._get_number_short_unsigned()
+        name = str(self.data[:length], 'UTF-8')
+        self._get_data(length)
+        data = self.data[:4]
+        value = self._get_number_int_unsigned()
+
+        self.message += f'  |-> Character Event\n'
+        self.message += f'    |-> Character: {idx}\n'
+        self.message += f'    |-> Event: {name}\n'
+        self.message += f'    |-> Unknown #1: {data.hex()} = {value}\n'
+
     def client(self, port: int) -> None:
         """
         Start to parse the data of the client.
@@ -330,10 +410,9 @@ class Parse:
 
         :rtype: None
         """
-
         ids = {
             15729: self._client_quest_selected,  # 0x713D
-            15731: self._client_weapon_slot,  # 0x733D
+            15731: self._general_weapon_slot,  # 0x733D
             25957: self._client_item,  # 0x6565
             26922: self._client_shoot,  # 0x2A69
             27762: self._client_weapon_reload,  # 0x726C
@@ -346,7 +425,7 @@ class Parse:
             791: self._general_constant_information,  # 0x1703
         }
 
-        self.message += f'[client({port})]\n'
+        self.message += f'Client -> Server [{port}]: {datetime.now()}\n'
         self._parse(ids)
 
     def server(self, port: int) -> None:
@@ -365,11 +444,16 @@ class Parse:
 
         ids = {
             11051: self._server_health,  # 0x2b2b
+            15731: self._general_weapon_slot,  # 0x733D
             24940: self._server_gun_shoot,  # 0x6c61
             24941: self._server_magic_shoot,  # 0x6d61
             27501: self._server_init,  # 0x6d6b
+            27762: self._server_weapon_reload,  # 0x726C
+            28771: self._server_item_recollection,  # 0x6370
             28784: self._server_constant_information,  # 0x7070
+            29300: self._server_character_events,  # 0x7472
             29552: self._server_character_position,  # 0x7073
+            29811: self._server_character_action,  # 0x7374
             30317: self._server_my_position,  # 0x6d76
             30840: self._server_monsters_list,  # 0x7878
             788: self._general_constant_information,  # 0x1403
@@ -378,7 +462,7 @@ class Parse:
             791: self._general_constant_information,  # 0x1703
         }
 
-        self.message += f'[server({port})]\n'
+        self.message += f'Server -> Client [{port}]: {datetime.now()}\n'
         self._parse(ids)
 
     def _parse(self, ids: dict) -> None:
@@ -407,20 +491,20 @@ class Parse:
 
             if is_unknown:
                 is_unknown = False
-                self.show_data = True
-                self.message += f'  |-> Unknown ---> Hex: {unknown_data.hex()}\n'
-                self.message += f'  |-> Unknown ---> Raw: {unknown_data}\n'
-                self.message += f'  |-> -----------------\n'
+                # self.show_data = True
+                self.message += f'|-> Unknown ---> Hex: {unknown_data.hex()}\n'
+                self.message += f'|-> Unknown ---> Raw: {unknown_data}\n'
+                self.message += f'|-> -----------------\n'
                 unknown_data = bytearray()
 
-            packet_id = self._convert_data_to_short_unsigned()
+            packet_id = self._get_number_short_unsigned()
             ids.get(packet_id)()
 
         if is_unknown:
-            self.show_data = True
-            self.message += f'  |-> Unknown ---> Hex: {unknown_data.hex()}\n'
-            self.message += f'  |-> Unknown ---> Raw: {unknown_data}\n'
-            self.message += f'  |-> -----------------\n'
+            # self.show_data = True
+            self.message += f'|-> Unknown ---> Hex: {unknown_data.hex()}\n'
+            self.message += f'|-> Unknown ---> Raw: {unknown_data}\n'
+            self.message += f'|-> -----------------\n'
         if self.should_display_message and len(self.message) > 20:
             if self.show_data:
                 self.message += f'|-> Hex: {self.data_original.hex()}\n'
