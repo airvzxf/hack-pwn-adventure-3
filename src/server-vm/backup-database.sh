@@ -16,17 +16,19 @@ vagrant ssh -- -tt 'docker exec -it docker_master_1 ' \
 # \l+
 # \c master
 # \dt+
-# select * from char_items;
-# select * from char_pickups;
-# select * from char_quests;
-# select * from char_slots;
-# select * from characters;
-# select * from info;
-# select * from names;
-# select * from team_state;
-# select * from teams;
-# select * from users;
+# SELECT * FROM char_items;
+# SELECT * FROM char_pickups;
+# SELECT * FROM char_quests;
+# SELECT * FROM char_slots;
+# SELECT * FROM characters;
+# SELECT * FROM info;
+# SELECT * FROM names;
+# SELECT * FROM team_state;
+# SELECT * FROM teams;
+# SELECT * FROM users;
 # \q
 # exit
 # exit
 # exit
+
+# watch -n 0.1 "psql -d master -c 'SELECT * FROM char_items;'"
