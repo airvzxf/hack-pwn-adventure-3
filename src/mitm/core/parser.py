@@ -150,6 +150,7 @@ class Parse:
 
         self.message += f'  |-> Weapon\n'
         self.message += f'    |-> Slot: {weapon_slot + 1}\n'
+        Queue.SERVER_QUEUE.append(b'\x72\x6C')
 
     def _client_weapon_reload(self) -> None:
         """
@@ -260,6 +261,8 @@ class Parse:
         self.message += f'  |-> Gun Shoot\n'
         self.message += f'    |-> Name: {weapon}\n'
         self.message += f'    |-> Bullets: {bullets}\n'
+        if bullets == 0:
+            Queue.SERVER_QUEUE.append(b'\x72\x6C')
 
     def _server_magic_shoot(self) -> None:
         """
@@ -491,7 +494,7 @@ class Parse:
 
             if is_unknown:
                 is_unknown = False
-                # self.show_data = True
+                self.show_data = True
                 self.message += f'|-> Unknown ---> Hex: {unknown_data.hex()}\n'
                 self.message += f'|-> Unknown ---> Raw: {unknown_data}\n'
                 self.message += f'|-> -----------------\n'
@@ -501,10 +504,11 @@ class Parse:
             ids.get(packet_id)()
 
         if is_unknown:
-            # self.show_data = True
+            self.show_data = True
             self.message += f'|-> Unknown ---> Hex: {unknown_data.hex()}\n'
             self.message += f'|-> Unknown ---> Raw: {unknown_data}\n'
             self.message += f'|-> -----------------\n'
+
         if self.should_display_message and len(self.message) > 20:
             if self.show_data:
                 self.message += f'|-> Hex: {self.data_original.hex()}\n'
