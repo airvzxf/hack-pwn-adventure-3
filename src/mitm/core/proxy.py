@@ -63,7 +63,7 @@ class Proxy(Thread):
             self.running = True
 
             if connection_thread:
-                client_thread, server_thread = connection_thread.pop()
+                client_thread, server_thread = connection_thread.pop(0)
                 client_thread.terminate()
                 server_thread.terminate()
 
@@ -72,6 +72,6 @@ class Proxy(Thread):
             connection_thread.append((client_to_server, server_to_client))
 
         if connection_thread:
-            client_thread, server_thread = connection_thread.pop()
+            client_thread, server_thread = connection_thread.pop(0)
             client_thread.terminate()
             server_thread.terminate()

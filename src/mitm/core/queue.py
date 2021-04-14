@@ -11,3 +11,4 @@ class Queue:
     """
     SERVER_QUEUE = []
     CLIENT_QUEUE = []
+    HACKS = []

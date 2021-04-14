@@ -14,6 +14,8 @@ from sys import exc_info
 from traceback import format_exception
 
 import core.parser
+from core.hack import Hack
+from core.inject import Inject
 from core.queue import Queue
 
 
@@ -70,22 +72,34 @@ class Package:
             destination = 'server'
             queue = Queue.SERVER_QUEUE
 
+        inject = Inject()
+
         while self.running:
             data: bytes = self.source.recv(4096)
             if data:
                 try:
+                    data = inject.run(data, destination)
+
+                    if len(Queue.HACKS):
+                        target, retries = Queue.HACKS.pop(0)
+                        if target.lower() == Hack.fire_balls.lower():
+                            inject.get_fire_balls(retries)
+
                     if len(queue) > 0:
-                        packet: bytes = queue.pop()
+                        packet: bytes = queue.pop(0)
                         message = f'--*-- Send to {destination}: {packet.hex()}'
                         print(message)
                         debug(message)
                         self.destination.sendall(packet)
+
                     reload(core.parser)
                     parse = core.parser.Parse(data)
+
                     if self.is_server:
                         parse.server(self.port)
                     else:
                         parse.client(self.port)
+
                 except Exception as e:
                     error_type, value, traceback = exc_info()
                     message = f'ERROR: {source}[{self.port}]: {e}\n' \
