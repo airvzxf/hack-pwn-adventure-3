@@ -26,7 +26,6 @@ class Inject:
         self.retries = 1
         self.active = False
         self.working = False
-        self.validation = bytearray()
         self.idx = ''
         self.destination = ''
         self.current_hack = ''
@@ -57,13 +56,6 @@ class Inject:
             debug(message)
             self._clean_state()
 
-        if len(self.validation) > 0 and destination != self.destination:
-            if self.data.find(self.validation) > -1:
-                self._clean_state()
-                message = f'*** Injection: Hacked {Hack.fire_balls}'
-                print(message)
-                debug(message)
-
         if destination == self.destination and idx == self.idx:
             self.retries -= 1
 
@@ -87,9 +79,6 @@ class Inject:
         self.idx = '6d76'
         self.destination = 'server'
         self.fixed_position = b'\x34\x97\x2a\xc7' + b'\xf2\x6a\x5a\xc7' + b'\x66\xbc\xa1\x43'
-        validation = '70751c00416368696576656d656e745f477265617442616c6c734f6646697265' \
-                     '70751000477265617442616c6c734f6646697265'
-        self.validation = bytearray.fromhex(validation)
         self.pending.append(Hack.fire_balls)
 
     def _clean_state(self) -> None:
@@ -104,7 +93,6 @@ class Inject:
         self.idx = ''
         self.destination = ''
         self.current_hack = ''
-        self.validation = bytearray()
         self.fixed_position = bytearray()
 
     def _execute_hack(self) -> None:
